@@ -1,29 +1,52 @@
-from django.shortcuts import render
-from django.http import JsonResponse, HttpResponse
-from .models import Product,Order
-
-from rest_framework.decorators import api_view,APIView
+from django.http import  HttpResponse
+from django.contrib.auth.models import User
+from .serializers import ProductSerializer
+from .models import Product
+from rest_framework.decorators import APIView
 from rest_framework.response import Response
-from rest_framework import serializers
-from rest_framework import viewsets
 from rest_framework import status
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import permission_classes,api_view
 
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = '__all__'
 
-# @api_view(['GET','post'])
-# def products(request):
-#     all_products=ProductSerializer(Product.objects.all(),many=True).data
-#     return Response ( all_products)
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+ 
+        # Add custom claims
+        token['username'] = user.username
+        # ...
+ 
+        return token
+ 
+ 
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
 
-class ProductViewSet(APIView):
+    # register
+@api_view(['POST'])
+def register(request):
+    user = User.objects.create_user(
+                username=request.data['username'],
+                email=request.data['email'],
+                password=request.data['password']
+            )
+    user.is_active = True
+    user.is_staff = True
+    user.save()
+    return Response("new user born")
+
+
+@permission_classes([IsAuthenticated])
+class ProductView(APIView):
     def get(self, request):
         my_model = Product.objects.all()
         serializer = ProductSerializer(my_model, many=True)
         return Response(serializer.data)
-
+    
     def post(self, request):
         serializer = ProductSerializer(data=request.data, context={'user': request.user})
         if serializer.is_valid():
@@ -44,28 +67,5 @@ class ProductViewSet(APIView):
         my_model.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-
-
-
-
-class OrderSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Order
-        fields = '__all__'
-
-@api_view(['GET','post'])
-def orders(request):
-    all_orders=OrderSerializer(Order.objects.all(),many=True).data
-    return Response ( all_orders)
-
-
 def index(req):
     return HttpResponse('<h1>hello')
-
-
-def about(req):
-    return JsonResponse(f'about', safe=False)
-
-def contact(req):
-    return JsonResponse(f'contact', safe=False)
